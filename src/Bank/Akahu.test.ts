@@ -15,6 +15,7 @@ const AkahuTest = Layer.succeed(Akahu)(
   Akahu.of({
     lastRefreshed: DateTime.now,
     refresh: Effect.succeed({ success: true }),
+    accounts: Stream.empty,
     transactions: (accountId: string) =>
       accountId === "checking"
         ? Stream.make(

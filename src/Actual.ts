@@ -15,7 +15,15 @@ import * as Api from "@actual-app/api"
 import ApiPackage from "@actual-app/api/package.json" with { type: "json" }
 import { Npm } from "./Npm.ts"
 import { NodeHttpClient } from "@effect/platform-node"
-import type { TransactionEntity } from "@actual-app/api/@types/loot-core/src/types/models/transaction.js"
+// TransactionEntity removed from @actual-app/api in 26.5.2 — define locally
+interface TransactionEntity {
+  id: string
+  imported_id?: string | null
+  imported_payee?: string | null
+  payee?: string | null
+  category?: string | null
+  cleared?: boolean | null
+}
 import { HttpClient, HttpClientResponse } from "effect/unstable/http"
 
 export type Query = ReturnType<typeof Api.q>
@@ -134,14 +142,15 @@ export class Actual extends ServiceMap.Service<Actual>()("Actual", {
         Stream.rechunk(500),
         Stream.chunks,
         Stream.mapEffect((chunk) =>
-          query<TransactionEntity>((q) =>
-            q("transactions")
-              .select(["*"])
-              .filter({
-                account: accountId,
-                $or: chunk.map((imported_id) => ({ imported_id })),
-              })
-              .withDead(),
+          query<TransactionEntity>(
+            (q) =>
+              q("transactions")
+                .select(["*"])
+                .filter({
+                  account: accountId,
+                  $or: chunk.map((imported_id) => ({ imported_id })),
+                }),
+            // .withDead() removed so deleted transactions are re-imported on next sync,
           ),
         ),
         Stream.runFold(

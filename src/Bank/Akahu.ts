@@ -104,6 +104,7 @@ export class Akahu extends ServiceMap.Service<Akahu>()("Bank/Akahu", {
 
     return {
       transactions: accountTransactions,
+      accounts,
       refresh,
       lastRefreshed,
     } as const
@@ -141,12 +142,31 @@ export const AkahuLayer = Effect.gen(function* () {
     Effect.catchCause(Effect.log),
   )
 
+  // Build a map of formatted_account → akahu account _id for transfer resolution
+  const formattedAccountToId: ReadonlyMap<string, string> =
+    yield* akahu.accounts.pipe(
+      Stream.runCollect,
+      Effect.map((accountList) => {
+        const map = new Map<string, string>()
+        for (const account of accountList) {
+          if (account.formatted_account) {
+            map.set(account.formatted_account, account._id)
+          }
+        }
+        return map
+      }),
+    )
+
   return Bank.of({
     exportAccount: (accountId, options) =>
       pipe(
         akahu.transactions(AccountId.makeUnsafe(accountId), options),
         Stream.runCollect,
-        Effect.map(Array.map((t) => t.accountTransaction(timeZone))),
+        Effect.map(
+          Array.map((t) =>
+            t.accountTransaction(timeZone, formattedAccountToId),
+          ),
+        ),
         Effect.mapError(
           (cause) =>
             new BankError({
@@ -179,6 +199,10 @@ export const ConnectionId: Schema.refine<
 export const AccountId = Schema.String.pipe(Schema.brand("AccountId"))
 export const UserId = Schema.String.pipe(Schema.brand("UserId"))
 
+class TransactionMeta extends Schema.Class<TransactionMeta>("TransactionMeta")({
+  other_account: Schema.optional(Schema.String),
+}) {}
+
 export class Transaction extends Schema.Class<Transaction>("Transaction")({
   _id: Schema.String,
   _account: AccountId,
@@ -187,10 +211,21 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
   date: Schema.DateTimeUtcFromString,
   description: Schema.String,
   amount: BigDecimalFromNumber,
+  type: Schema.optional(Schema.String),
+  meta: Schema.optional(TransactionMeta),
   merchant: Schema.optional(Merchant),
   category: Schema.optional(Category),
 }) {
-  accountTransaction(timeZone: DateTime.TimeZone): AccountTransaction {
+  accountTransaction(
+    timeZone: DateTime.TimeZone,
+    formattedAccountToId?: ReadonlyMap<string, string>,
+  ): AccountTransaction {
+    const otherAkahuId =
+      this.type === "TRANSFER" &&
+      this.meta?.other_account &&
+      formattedAccountToId
+        ? formattedAccountToId.get(this.meta.other_account)
+        : undefined
     return {
       dateTime: this.date.pipe(DateTime.setZone(timeZone)),
       amount: this.amount,
@@ -198,6 +233,7 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
       category: this.category?.name,
       notes: this.description,
       cleared: true,
+      ...(otherAkahuId ? { transfer: otherAkahuId } : undefined),
     }
   }
 }
@@ -242,6 +278,7 @@ class Refreshed extends Schema.Class<Refreshed>("Refreshed")({
 class Account extends Schema.Class<Account>("AccountElement")({
   _id: AccountId,
   name: Schema.String,
+  formatted_account: Schema.optional(Schema.String),
   refreshed: Refreshed,
 }) {}
 
