@@ -1,0 +1,63 @@
+name: Akahu → Actual Budget Sync
+
+on:
+  schedule:
+    - cron: "0 20 * * *" # 8:00 AM NZST (UTC+12) daily
+  workflow_dispatch: # allow manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Patch @actual-app/api exports
+        run: |
+          node -e "
+            const fs = require('fs');
+            const path = 'node_modules/@actual-app/api/package.json';
+            const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+            if (!pkg.exports['./package.json']) {
+              pkg.exports['./package.json'] = './package.json';
+              fs.writeFileSync(path, JSON.stringify(pkg, null, 2));
+              console.log('Patched @actual-app/api exports');
+            }
+          "
+
+      - name: Build
+        run: pnpm build
+
+      - name: Create data directory
+        run: mkdir -p /tmp/actual-data
+
+      - name: Run sync
+        env:
+          ACTUAL_SERVER: ${{ secrets.ACTUAL_SERVER }}
+          ACTUAL_SYNC_ID: ${{ secrets.ACTUAL_SYNC_ID }}
+          ACTUAL_PASSWORD: ${{ secrets.ACTUAL_PASSWORD }}
+          ACTUAL_DATA: /tmp/actual-data
+          AKAHU_APP_TOKEN: ${{ secrets.AKAHU_APP_TOKEN }}
+          AKAHU_USER_TOKEN: ${{ secrets.AKAHU_USER_TOKEN }}
+        run: |
+          node dist/main.cjs --bank akahu --sync-days 30 \
+            --accounts "10170e5c-b4c0-423f-9125-b1b74a9dcb69=acc_cmprk93fp005b02l7ficqc3wv" \
+            --accounts "ccac8724-7348-4eb3-a70c-39cfe6b66661=acc_cmprk93fv005d02l7ezjoczny" \
+            --accounts "73894fda-4db3-4dcc-92c5-f62973436c70=acc_cmprk93g1005f02l70lfa5m7z" \
+            --accounts "d2edf7ee-2fb7-43e5-999d-1e91c58f95c6=acc_cmprkay06003n02kzf8ab5jz1" \
+            --accounts "79e1de12-ee3c-413f-8b3b-1252aa33f046=acc_cmprke32w007402l26vb4d5hv"
