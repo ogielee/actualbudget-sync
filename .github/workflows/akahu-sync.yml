@@ -2,7 +2,7 @@ name: Akahu → Actual Budget Sync
 
 on:
   schedule:
-    - cron: "0 20 * * *" # 8:00 AM NZST (UTC+12) daily
+    - cron: "0 19-9 * * *" # Every hour 7AM–9PM NZST (UTC+12 → 19:00–09:00 UTC)
   workflow_dispatch: # allow manual trigger from GitHub UI
 
 jobs:
