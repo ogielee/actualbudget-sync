@@ -53,6 +53,7 @@
     "better-sqlite3": "^12.8.0",
     "compare-versions": "^6.1.1",
     "google-protobuf": "^4.0.2",
+    "googleapis": "^173.0.0",
     "node-fetch": "^3.3.2",
     "playwright": "^1.58.2",
     "uuid": "^13.0.0"

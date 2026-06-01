@@ -1,0 +1,45 @@
+name: Weekly Budget Sheet Sync
+
+on:
+  schedule:
+    # Sunday 8pm UTC = Monday 8am NZST (UTC+12, NZ Standard Time)
+    - cron: "0 20 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (print what would be set, no writes)"
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run sheet sync
+        run: node dist/sheet-sync.js ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
+        env:
+          ACTUAL_SERVER: ${{ secrets.ACTUAL_SERVER }}
+          ACTUAL_PASSWORD: ${{ secrets.ACTUAL_PASSWORD }}
+          ACTUAL_SYNC_ID: ${{ secrets.ACTUAL_SYNC_ID }}
+          GOOGLE_SHEETS_ID: ${{ secrets.GOOGLE_SHEETS_ID }}
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+          ACTUAL_DATA: /tmp/actual-data
