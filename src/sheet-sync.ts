@@ -163,9 +163,14 @@ async function main() {
   await api.downloadBudget(ACTUAL_SYNC_ID!)
 
   const categories = await api.getCategories()
+  // Actual Budget category names have frequency suffixes like "(W)", "(M)", "(Q)", "(Y)".
+  // Strip them so "Mortgage (W)" matches the sheet row "Mortgage".
   const categoryByName = new Map(
     categories.map((c: { id: string; name: string }) => [
-      c.name.trim().toLowerCase(),
+      c.name
+        .trim()
+        .replace(/\s*\([A-Z]\)$/i, "")
+        .toLowerCase(),
       c.id,
     ]),
   )
