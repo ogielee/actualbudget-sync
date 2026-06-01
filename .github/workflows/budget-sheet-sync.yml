@@ -30,6 +30,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Create data directory
+        run: mkdir -p /tmp/actual-data
+
       - name: Run sheet sync
         run: node dist/sheet-sync.cjs ${{ inputs.dry_run == 'true' && '--dry-run' || '' }}
         env:
