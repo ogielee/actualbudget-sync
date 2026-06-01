@@ -157,6 +157,15 @@ async function main() {
   type CategoryAmount = { actualId: string; name: string; amountCents: number }
   const updates: CategoryAmount[] = []
 
+  console.log("DEBUG first 5 data rows:")
+  for (let r = 2; r < Math.min(rows.length, 7); r++) {
+    const row = rows[r] ?? []
+    console.log(
+      `  row[${r}]: col0=${JSON.stringify(row[0])} col1=${JSON.stringify(row[1])}`,
+    )
+  }
+  console.log()
+
   for (let r = 2; r < rows.length; r++) {
     const row = rows[r] ?? []
     const name = String(row[0] ?? "").trim()
