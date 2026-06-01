@@ -2,8 +2,8 @@ name: Weekly Budget Sheet Sync
 
 on:
   schedule:
-    # Sunday 8pm UTC = Monday 8am NZST (UTC+12, NZ Standard Time)
-    - cron: "0 20 * * 0"
+    # 7am NZST (UTC+12) daily — runs at 8am during NZDT (UTC+13) in summer
+    - cron: "0 19 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
