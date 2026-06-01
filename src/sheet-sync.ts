@@ -175,15 +175,13 @@ async function main() {
       }
     }
 
-    if (sum > 0) {
-      // Actual Budget stores amounts as integer cents (e.g. $100.00 = 10000)
-      updates.push({ actualId, name, amountCents: Math.round(sum * 100) })
-    }
+    // Actual Budget stores amounts as integer cents (e.g. $100.00 = 10000)
+    updates.push({ actualId, name, amountCents: Math.round(sum * 100) })
   }
 
   if (updates.length === 0) {
     console.log(
-      "No non-zero budget amounts found for current month weeks. Nothing to sync.",
+      "No categories with Actual IDs found in sheet. Nothing to sync.",
     )
     process.exit(0)
   }
