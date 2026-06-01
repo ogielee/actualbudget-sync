@@ -153,60 +153,7 @@ async function main() {
   )
   console.log()
 
-  // 3. Build per-category sums (skip group headers and subtotal rows)
-  type CategoryAmount = { actualId: string; name: string; amountCents: number }
-  const updates: CategoryAmount[] = []
-
-  console.log("DEBUG first 5 data rows:")
-  for (let r = 2; r < Math.min(rows.length, 7); r++) {
-    const row = rows[r] ?? []
-    console.log(
-      `  row[${r}]: col0=${JSON.stringify(row[0])} col1=${JSON.stringify(row[1])}`,
-    )
-  }
-  console.log()
-
-  for (let r = 2; r < rows.length; r++) {
-    const row = rows[r] ?? []
-    const name = String(row[0] ?? "").trim()
-    const actualId = String(row[1] ?? "").trim()
-
-    // Skip group headers (no Actual ID), subtotal rows, empty rows
-    if (!name || !actualId || actualId === "Actual ID") continue
-
-    let sum = 0
-    for (const wc of weekCols) {
-      const val = row[wc.colIdx]
-      if (typeof val === "number" && val !== 0) sum += val
-      else if (typeof val === "string") {
-        const n = parseFloat(val)
-        if (!isNaN(n)) sum += n
-      }
-    }
-
-    // Actual Budget stores amounts as integer cents (e.g. $100.00 = 10000)
-    updates.push({ actualId, name, amountCents: Math.round(sum * 100) })
-  }
-
-  if (updates.length === 0) {
-    console.log(
-      "No categories with Actual IDs found in sheet. Nothing to sync.",
-    )
-    process.exit(0)
-  }
-
-  console.log(`Categories with amounts to set (${updates.length}):`)
-  for (const u of updates) {
-    console.log(`  ${u.name.padEnd(35)} $${(u.amountCents / 100).toFixed(2)}`)
-  }
-  console.log()
-
-  if (DRY_RUN) {
-    console.log("DRY RUN — skipping Actual Budget write.")
-    process.exit(0)
-  }
-
-  // 4. Connect to Actual Budget and set budgets
+  // 3. Connect to Actual Budget and build category name → id map
   console.log("Connecting to Actual Budget...")
   await api.init({
     serverURL: ACTUAL_SERVER!,
@@ -214,6 +161,59 @@ async function main() {
     dataDir: ACTUAL_DATA,
   })
   await api.downloadBudget(ACTUAL_SYNC_ID!)
+
+  const categories = await api.getCategories()
+  const categoryByName = new Map(
+    categories.map((c: { id: string; name: string }) => [
+      c.name.trim().toLowerCase(),
+      c.id,
+    ]),
+  )
+
+  // 4. Build per-category sums; match sheet rows to Actual categories by name
+  type CategoryAmount = { actualId: string; name: string; amountCents: number }
+  const updates: CategoryAmount[] = []
+
+  for (let r = 2; r < rows.length; r++) {
+    const row = rows[r] ?? []
+    const name = String(row[0] ?? "").trim()
+    if (!name) continue
+
+    const actualId = categoryByName.get(name.toLowerCase())
+    if (!actualId) continue // group header or unrecognised row — skip silently
+
+    let sum = 0
+    for (const wc of weekCols) {
+      const val = row[wc.colIdx]
+      if (typeof val === "number") sum += val
+      else if (typeof val === "string") {
+        const n = parseFloat(val)
+        if (!isNaN(n)) sum += n
+      }
+    }
+
+    updates.push({ actualId, name, amountCents: Math.round(sum * 100) })
+  }
+
+  if (updates.length === 0) {
+    console.log(
+      "No sheet rows matched any Actual Budget category. Nothing to sync.",
+    )
+    await api.shutdown()
+    process.exit(0)
+  }
+
+  console.log(`Categories to sync (${updates.length}):`)
+  for (const u of updates) {
+    console.log(`  ${u.name.padEnd(35)} $${(u.amountCents / 100).toFixed(2)}`)
+  }
+  console.log()
+
+  if (DRY_RUN) {
+    console.log("DRY RUN — skipping Actual Budget write.")
+    await api.shutdown()
+    process.exit(0)
+  }
 
   const month = currentMonth // "2026-06" format expected by api.setBudget
 
