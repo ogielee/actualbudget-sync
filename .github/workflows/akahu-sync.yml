@@ -1,4 +1,4 @@
-name: Akahu → Actual Budget Sync
+name: Akahu → Actual Transaction Sync
 
 on:
   schedule:
