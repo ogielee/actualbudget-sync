@@ -10,6 +10,7 @@ import {
   FiberSet,
   pipe,
 } from "effect"
+import { v4 as uuidv4 } from "uuid"
 import {
   type AccountTransaction,
   AccountTransactionOrder,
@@ -67,12 +68,62 @@ export const runCollect = Effect.fnUntraced(function* (options: {
   const now = yield* DateTime.now
   const since = DateTime.subtractDuration(now, options.syncDuration)
 
-  return yield* Effect.forEach(
+  // Pass 1: collect raw AccountTransactions per account
+  const rawPerAccount = yield* Effect.forEach(
     options.accounts,
     Effect.fnUntraced(function* ({ bankAccountId, actualAccountId }) {
-      const transactions = yield* bank.exportAccount(bankAccountId, {
-        since,
+      const transactions = yield* bank.exportAccount(bankAccountId, { since })
+      return { bankAccountId, actualAccountId, transactions }
+    }),
+  )
+
+  // Cross-bank transfer matching: find TRANSFER transactions with no resolved
+  // transfer field (meta.other_account didn't resolve), match pairs across
+  // accounts by opposite amount + date within 2 days, assign shared UUID.
+  // Key by transaction object reference to avoid double-incrementing the
+  // stateful importId counter.
+  type PendingTransfer = {
+    transaction: AccountTransaction
+    amount: BigDecimal.BigDecimal
+    actualAccountId: string
+    date: string
+  }
+  const pending: Array<PendingTransfer> = []
+  for (const { actualAccountId, transactions } of rawPerAccount) {
+    for (const t of transactions) {
+      if (t.type !== "TRANSFER" || t.transfer !== undefined) continue
+      pending.push({
+        transaction: t,
+        amount: t.amount,
+        date: DateTime.formatIsoDate(t.dateTime),
+        actualAccountId,
       })
+    }
+  }
+
+  const crossBankTransferIds = new Map<AccountTransaction, string>()
+  const matched = new Set<AccountTransaction>()
+  for (let i = 0; i < pending.length; i++) {
+    const a = pending[i]!
+    if (matched.has(a.transaction)) continue
+    for (let j = i + 1; j < pending.length; j++) {
+      const b = pending[j]!
+      if (matched.has(b.transaction)) continue
+      if (a.actualAccountId === b.actualAccountId) continue
+      if (!BigDecimal.equals(a.amount, BigDecimal.negate(b.amount))) continue
+      if (daysBetween(a.date, b.date) > 2) continue
+      const id = uuidv4()
+      crossBankTransferIds.set(a.transaction, id)
+      crossBankTransferIds.set(b.transaction, id)
+      matched.add(a.transaction)
+      matched.add(b.transaction)
+      break
+    }
+  }
+
+  // Pass 2: convert to ImportTransaction, attaching transfer_id where matched
+  return rawPerAccount.map(
+    ({ bankAccountId, actualAccountId, transactions }) => {
       const ids: Array<string> = []
       const forImport = pipe(
         transactions,
@@ -84,9 +135,8 @@ export const runCollect = Effect.fnUntraced(function* (options: {
           const category = options.categorize && categoryId(transaction)
           const transferPayee =
             transaction.transfer && transferAccountId(transaction)
-
+          const transfer_id = crossBankTransferIds.get(transaction)
           ids.push(imported_id)
-
           return {
             account: actualAccountId,
             imported_id,
@@ -98,15 +148,12 @@ export const runCollect = Effect.fnUntraced(function* (options: {
             notes: transaction.notes,
             cleared: transaction.cleared,
             ...(category ? { category } : undefined),
+            ...(transfer_id ? { transfer_id } : undefined),
           }
         }),
       )
-      return {
-        transactions: forImport,
-        ids,
-        actualAccountId,
-      }
-    }),
+      return { transactions: forImport, ids, actualAccountId }
+    },
   )
 })
 
@@ -120,6 +167,7 @@ type ImportTransaction =
       account: string
       imported_id: string
       date: string
+      transfer_id?: string
     }
   | {
       category?: string | undefined
@@ -130,6 +178,7 @@ type ImportTransaction =
       account: string
       imported_id: string
       date: string
+      transfer_id?: string
     }
 
 export const run = Effect.fnUntraced(function* (options: {
@@ -231,6 +280,9 @@ export const run = Effect.fnUntraced(function* (options: {
   }
   yield* FiberSet.awaitEmpty(fibers)
 }, Effect.scoped)
+
+const daysBetween = (a: string, b: string): number =>
+  Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86400000
 
 const makeImportId = () => {
   const counters = new Map<string, number>()

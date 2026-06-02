@@ -35,6 +35,7 @@ export interface AccountTransaction {
   readonly notes?: string
   readonly cleared?: boolean
   readonly category?: string
+  readonly type?: string
   readonly transfer?: string
   readonly externalId?: string
 }

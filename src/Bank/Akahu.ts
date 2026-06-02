@@ -231,6 +231,7 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
       amount: this.amount,
       payee: this.merchant?.name ?? this.description,
       category: this.category?.name,
+      type: this.type,
       notes: this.description,
       cleared: true,
       ...(otherAkahuId ? { transfer: otherAkahuId } : undefined),
