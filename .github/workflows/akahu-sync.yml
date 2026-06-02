@@ -2,7 +2,7 @@ name: Akahu → Actual Transaction Sync
 
 on:
   schedule:
-    - cron: "0 * * * *" # Every hour, every day
+    - cron: "0 */4 * * *" # Every 4 hours
   workflow_dispatch: # allow manual trigger from GitHub UI
 
 jobs:
