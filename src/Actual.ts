@@ -13,6 +13,7 @@ import {
 } from "effect"
 import * as Api from "@actual-app/api"
 import ApiPackage from "@actual-app/api/package.json" with { type: "json" }
+import { compareVersions } from "compare-versions"
 import { Npm } from "./Npm.ts"
 import { NodeHttpClient } from "@effect/platform-node"
 // TransactionEntity removed from @actual-app/api in 26.5.2 — define locally
@@ -68,6 +69,22 @@ export class Actual extends ServiceMap.Service<Actual>()("Actual", {
     const api = yield* Effect.gen(function* () {
       const version = yield* serverVersion
       if (version === ApiPackage.version) {
+        return Api
+      }
+      // Only download the server's version if it is strictly newer than what
+      // is installed. If the installed version is newer (e.g. the server
+      // temporarily reported an older version while the DB already has newer
+      // migrations applied), keep the installed version so we don't
+      // inadvertently downgrade and break migration compatibility.
+      if (compareVersions(version, ApiPackage.version) <= 0) {
+        yield* Effect.logInfo(
+          "Server version is older than installed — keeping installed version.",
+        ).pipe(
+          Effect.annotateLogs({
+            serverVersion: version,
+            localVersion: ApiPackage.version,
+          }),
+        )
         return Api
       }
       yield* Effect.logInfo(

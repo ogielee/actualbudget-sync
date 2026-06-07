@@ -31,8 +31,13 @@ jobs:
           INSTALLED=$(node -e "console.log(require('./node_modules/@actual-app/api/package.json').version)")
           echo "Server: ${SERVER_VERSION:-unknown}  Installed: $INSTALLED"
           if [ -n "$SERVER_VERSION" ] && [ "$SERVER_VERSION" != "$INSTALLED" ]; then
-            echo "Version mismatch — installing @actual-app/api@$SERVER_VERSION"
-            pnpm add @actual-app/api@$SERVER_VERSION
+            NEWER=$(printf '%s\n%s\n' "$SERVER_VERSION" "$INSTALLED" | sort -V | tail -1)
+            if [ "$NEWER" = "$SERVER_VERSION" ]; then
+              echo "Server is newer — upgrading @actual-app/api to $SERVER_VERSION"
+              pnpm add @actual-app/api@$SERVER_VERSION
+            else
+              echo "Installed ($INSTALLED) >= server ($SERVER_VERSION) — keeping installed version"
+            fi
           fi
         env:
           ACTUAL_SERVER: ${{ secrets.ACTUAL_SERVER }}
