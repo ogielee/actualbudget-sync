@@ -27,10 +27,10 @@ jobs:
 
       - name: Sync @actual-app/api version to server
         run: |
-          SERVER_VERSION=$(curl -sf "$ACTUAL_SERVER/info" | jq -r '.build.version')
+          SERVER_VERSION=$(curl -s "$ACTUAL_SERVER/info" 2>/dev/null | jq -r '.build.version // empty' 2>/dev/null || true)
           INSTALLED=$(node -e "console.log(require('./node_modules/@actual-app/api/package.json').version)")
-          echo "Server: $SERVER_VERSION  Installed: $INSTALLED"
-          if [ "$SERVER_VERSION" != "$INSTALLED" ]; then
+          echo "Server: ${SERVER_VERSION:-unknown}  Installed: $INSTALLED"
+          if [ -n "$SERVER_VERSION" ] && [ "$SERVER_VERSION" != "$INSTALLED" ]; then
             echo "Version mismatch — installing @actual-app/api@$SERVER_VERSION"
             pnpm add @actual-app/api@$SERVER_VERSION
           fi
