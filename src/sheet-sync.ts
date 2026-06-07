@@ -297,9 +297,11 @@ async function main() {
     if (available >= incomeTotalCents) {
       const newHold = available - incomeTotalCents
       if (!DRY_RUN) {
-        await api.resetBudgetHold(month)
         if (newHold > 0) {
-          await api.holdBudgetForNextMonth(month, newHold)
+          const ok = await api.holdBudgetForNextMonth(month, newHold)
+          console.log(`  holdBudgetForNextMonth returned: ${ok}`)
+        } else {
+          await api.resetBudgetHold(month)
         }
       }
       console.log(
