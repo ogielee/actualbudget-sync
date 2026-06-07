@@ -285,9 +285,6 @@ async function main() {
     const available = forNextMonth + toBudget
 
     console.log(
-      `  [debug] forNextMonth raw=${forNextMonth}  toBudget raw=${toBudget}  incomeTotalCents=${incomeTotalCents}`,
-    )
-    console.log(
       `  Income total (month to date): $${(incomeTotalCents / 100).toFixed(2)}`,
     )
     console.log(
@@ -302,17 +299,13 @@ async function main() {
 
     if (available >= incomeTotalCents) {
       const newHold = available - incomeTotalCents
-      console.log(
-        `  [debug] YES branch — newHold raw=${newHold} ($${(newHold / 100).toFixed(2)})`,
-      )
       if (!DRY_RUN) {
         // Reset first so toBudget has the full available pool before we re-hold.
         // Without this, holdBudgetForNextMonth may return false when toBudget
         // is negative (over-budget after category writes).
         await api.resetBudgetHold(month)
         if (newHold > 0) {
-          const ok = await api.holdBudgetForNextMonth(month, newHold)
-          console.log(`  holdBudgetForNextMonth(${newHold}) returned: ${ok}`)
+          await api.holdBudgetForNextMonth(month, newHold)
         }
       }
       console.log(
@@ -322,12 +315,8 @@ async function main() {
         `  ${DRY_RUN ? "[DRY RUN] Would re-hold" : "Re-held "}  $${(newHold / 100).toFixed(2)} for next month`,
       )
     } else {
-      console.log(
-        `  [debug] NO branch — available(${available}) < incomeTotalCents(${incomeTotalCents})`,
-      )
       if (!DRY_RUN && available > 0) {
-        const ok = await api.holdBudgetForNextMonth(month, available)
-        console.log(`  holdBudgetForNextMonth(${available}) returned: ${ok}`)
+        await api.holdBudgetForNextMonth(month, available)
       }
       console.log(
         `  ${DRY_RUN ? "[DRY RUN] Would hold" : "Held"} full available $${(available / 100).toFixed(2)} for next month (less than income total $${(incomeTotalCents / 100).toFixed(2)})`,
