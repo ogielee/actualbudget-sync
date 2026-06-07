@@ -325,11 +325,12 @@ async function main() {
       console.log(
         `  [debug] NO branch — available(${available}) < incomeTotalCents(${incomeTotalCents})`,
       )
-      if (!DRY_RUN) {
-        await api.resetBudgetHold(month)
+      if (!DRY_RUN && available > 0) {
+        const ok = await api.holdBudgetForNextMonth(month, available)
+        console.log(`  holdBudgetForNextMonth(${available}) returned: ${ok}`)
       }
       console.log(
-        `  ${DRY_RUN ? "[DRY RUN] Would release" : "Released"} full hold — available $${(available / 100).toFixed(2)} < income total $${(incomeTotalCents / 100).toFixed(2)}`,
+        `  ${DRY_RUN ? "[DRY RUN] Would hold" : "Held"} full available $${(available / 100).toFixed(2)} for next month (less than income total $${(incomeTotalCents / 100).toFixed(2)})`,
       )
     }
   }
