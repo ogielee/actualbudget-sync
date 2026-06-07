@@ -8,8 +8,8 @@ importers:
   .:
     dependencies:
       "@actual-app/api":
-        specifier: 26.5.2
-        version: 26.5.2
+        specifier: 26.6.0
+        version: 26.6.0
       "@actual-app/crdt":
         specifier: ^2.1.0
         version: 2.1.0
@@ -28,6 +28,9 @@ importers:
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2
+      ofx-js:
+        specifier: ^1.1.1
+        version: 1.1.1
       playwright:
         specifier: ^1.58.2
         version: 1.58.2
@@ -92,17 +95,17 @@ importers:
     publishDirectory: dist
 
 packages:
-  "@actual-app/api@26.5.2":
+  "@actual-app/api@26.6.0":
     resolution:
       {
-        integrity: sha512-BlJvnzTyRf2CRWgZA8I3/lVnBst9+jOzpQ80Fho9wVI40dY90b2ezlfxXSQ9wgmqr8mXygKdwZkUXVQd8cGJFg==,
+        integrity: sha512-nDmBGyhEmJpb2SRXxGN+LrNMAJMTMOkbOtk3GG7QKWc2EiqMEbsTiYtxcHyU1X+HV7jxnez6mQW4c7srPf61fA==,
       }
     engines: { node: ">=20" }
 
-  "@actual-app/core@26.5.2":
+  "@actual-app/core@26.6.0":
     resolution:
       {
-        integrity: sha512-KcosLcObhCX28JA4IMAeOOKstsC9Ffd9PZVBvn/sAZrKwDoHziNwOO8W8FVWaetxyy2pcXTsEWDfZHm6drlJ8A==,
+        integrity: sha512-qrlsds+DpYxrjfQa5BEPOw9eOxQFt6z4zDLo2tt+veBHIwVnD1ewjsycIOxs57Nl+o872SXvsf1XNamoz9Lhdg==,
       }
 
   "@actual-app/crdt@2.1.0":
@@ -111,12 +114,24 @@ packages:
         integrity: sha512-Qb8hMq10Wi2kYIDj0fG4uy00f9Mloghd+xQrHQiPQfgx022VPJ/No+z/bmfj4MuFH8FrPiLysSzRsj2PNQIedw==,
       }
 
+  "@actual-app/crdt@3.0.0":
+    resolution:
+      {
+        integrity: sha512-qTdqAa5rPGBLDld932ox4ADRLpX+SDXIyuJpdP0GIimH6ekYX375bwLrWznev2B8aIZVU+R83I6+ltV2lQOpvg==,
+      }
+
   "@babel/runtime@7.29.2":
     resolution:
       {
         integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==,
       }
     engines: { node: ">=6.9.0" }
+
+  "@bufbuild/protobuf@2.12.0":
+    resolution:
+      {
+        integrity: sha512-B/XlCaFIP8LOwzo+bz5uFzATYokcwCKQcghqnlfwSmM5eX/qTkvDBnDPs+gXtX/RyjxJ4DRikECcPJbyALA8FA==,
+      }
 
   "@changesets/apply-release-plan@7.1.0":
     resolution:
@@ -3038,6 +3053,12 @@ packages:
         integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==,
       }
 
+  ofx-js@1.1.1:
+    resolution:
+      {
+        integrity: sha512-4ITJY2LuEq1fTV4FrsUgeVyEZOGz4vw9otaqPj1V2hfjN2c4RWYj8VVX6f3u6pSCwCie/ZH15VsGftWv08IsfQ==,
+      }
+
   once@1.4.0:
     resolution:
       {
@@ -3934,6 +3955,13 @@ packages:
       }
     hasBin: true
 
+  uuid@14.0.0:
+    resolution:
+      {
+        integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==,
+      }
+    hasBin: true
+
   uuid@9.0.1:
     resolution:
       {
@@ -4155,15 +4183,15 @@ packages:
     engines: { node: ">=10" }
 
 snapshots:
-  "@actual-app/api@26.5.2":
+  "@actual-app/api@26.6.0":
     dependencies:
-      "@actual-app/core": 26.5.2
-      "@actual-app/crdt": 2.1.0
+      "@actual-app/core": 26.6.0
+      "@actual-app/crdt": 3.0.0
       better-sqlite3: 12.8.0
       compare-versions: 6.1.1
-      uuid: 13.0.0
+      uuid: 14.0.0
 
-  "@actual-app/core@26.5.2":
+  "@actual-app/core@26.6.0":
     dependencies:
       "@jlongster/sql.js": 1.6.7
       "@rschedule/core": 1.5.0
@@ -4174,7 +4202,6 @@ snapshots:
       csv-parse: 6.2.1
       csv-stringify: 6.7.0
       date-fns: 4.4.0
-      google-protobuf: 3.21.4
       handlebars: 4.7.9
       hyperformula: 3.3.0
       lodash: 4.18.1
@@ -4184,7 +4211,7 @@ snapshots:
       promise-retry: 2.0.1
       typescript-strict-plugin: 2.4.4
       ua-parser-js: 2.0.10
-      uuid: 13.0.0
+      uuid: 14.0.0
       xml2js: 0.6.2
 
   "@actual-app/crdt@2.1.0":
@@ -4193,7 +4220,15 @@ snapshots:
       murmurhash: 2.0.1
       uuid: 9.0.1
 
+  "@actual-app/crdt@3.0.0":
+    dependencies:
+      "@bufbuild/protobuf": 2.12.0
+      murmurhash: 2.0.1
+      uuid: 14.0.0
+
   "@babel/runtime@7.29.2": {}
+
+  "@bufbuild/protobuf@2.12.0": {}
 
   "@changesets/apply-release-plan@7.1.0":
     dependencies:
@@ -5710,6 +5745,8 @@ snapshots:
 
   obug@2.1.1: {}
 
+  ofx-js@1.1.1: {}
+
   once@1.4.0:
     dependencies:
       wrappy: 1.0.2
@@ -6266,6 +6303,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   uuid@13.0.0: {}
+
+  uuid@14.0.0: {}
 
   uuid@9.0.1: {}
 

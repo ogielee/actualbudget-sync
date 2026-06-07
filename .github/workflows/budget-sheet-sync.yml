@@ -27,6 +27,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Sync @actual-app/api version to server
+        run: |
+          SERVER_VERSION=$(curl -sf "$ACTUAL_SERVER/info" | jq -r '.build.version')
+          INSTALLED=$(node -e "console.log(require('./node_modules/@actual-app/api/package.json').version)")
+          echo "Server: $SERVER_VERSION  Installed: $INSTALLED"
+          if [ "$SERVER_VERSION" != "$INSTALLED" ]; then
+            echo "Version mismatch — installing @actual-app/api@$SERVER_VERSION"
+            pnpm add @actual-app/api@$SERVER_VERSION
+          fi
+        env:
+          ACTUAL_SERVER: ${{ secrets.ACTUAL_SERVER }}
+
       - name: Build
         run: pnpm build
 
