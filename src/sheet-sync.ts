@@ -87,8 +87,11 @@ function parseISODate(v: string | null | undefined): Date | null {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Derive today in NZ time so week columns aren't excluded during the NZ
+  // morning hours when GitHub Actions (UTC) is still on the previous date.
+  const today = new Date(
+    new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Auckland" }),
+  )
   const currentMonth = monthKey(today)
 
   console.log(`\n=== Sheet Budget Sync ===`)
