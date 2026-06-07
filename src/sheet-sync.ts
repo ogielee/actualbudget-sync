@@ -178,14 +178,32 @@ async function main() {
     ]),
   )
 
-  // 4. Build per-category sums; match sheet rows to Actual categories by name
+  // 4. Build per-category sums; match sheet rows to Actual categories by name.
+  //    Also capture the INCOME TOTAL row for the hold-for-next-month logic.
   type CategoryAmount = { actualId: string; name: string; amountCents: number }
   const updates: CategoryAmount[] = []
+  let incomeTotalCents = 0
+  let incomeRowFound = false
 
   for (let r = 2; r < rows.length; r++) {
     const row = rows[r] ?? []
     const name = String(row[0] ?? "").trim()
     if (!name) continue
+
+    if (name.toLowerCase() === "income total") {
+      let sum = 0
+      for (const wc of weekCols) {
+        const val = row[wc.colIdx]
+        if (typeof val === "number") sum += val
+        else if (typeof val === "string") {
+          const n = parseFloat(val)
+          if (!isNaN(n)) sum += n
+        }
+      }
+      incomeTotalCents = Math.round(sum * 100)
+      incomeRowFound = true
+      continue
+    }
 
     const actualId = categoryByName.get(name.toLowerCase())
     if (!actualId) continue // group header or unrecognised row — skip silently
@@ -217,37 +235,95 @@ async function main() {
   }
   console.log()
 
-  if (DRY_RUN) {
-    console.log("DRY RUN — skipping Actual Budget write.")
-    await api.shutdown()
-    process.exit(0)
-  }
-
   const month = currentMonth // "2026-06" format expected by api.setBudget
 
-  const results = await Promise.allSettled(
-    updates.map((u) => api.setBudgetAmount(month, u.actualId, u.amountCents)),
-  )
+  if (DRY_RUN) {
+    console.log("DRY RUN — skipping category budget writes.")
+  } else {
+    const results = await Promise.allSettled(
+      updates.map((u) => api.setBudgetAmount(month, u.actualId, u.amountCents)),
+    )
 
-  let applied = 0
-  let errors = 0
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i]!
-    const u = updates[i]!
-    if (r.status === "fulfilled") {
-      console.log(`  ✓ ${u.name}: $${(u.amountCents / 100).toFixed(2)}`)
-      applied++
+    let applied = 0
+    let errors = 0
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i]!
+      const u = updates[i]!
+      if (r.status === "fulfilled") {
+        console.log(`  ✓ ${u.name}: $${(u.amountCents / 100).toFixed(2)}`)
+        applied++
+      } else {
+        console.error(`  ✗ ${u.name}: ${(r.reason as Error).message}`)
+        errors++
+      }
+    }
+
+    if (errors > 0) {
+      await api.sync()
+      await api.shutdown()
+      console.log(`\nDone. ${applied} budgets updated, ${errors} errors.`)
+      process.exit(1)
+    }
+
+    console.log(`\n${applied} budgets updated.`)
+  }
+
+  // ── Hold for next month ────────────────────────────────────────────────────
+  console.log(`\n=== Hold for Next Month ===`)
+
+  if (!incomeRowFound) {
+    console.log(
+      "  INCOME TOTAL row not found in sheet — skipping hold adjustment.",
+    )
+  } else {
+    const budgetMonth = await api.getBudgetMonth(month)
+    const forNextMonth: number = budgetMonth.forNextMonth
+    const toBudget: number = budgetMonth.toBudget
+    // available = forNextMonth + toBudget is invariant under hold shifts:
+    // resetBudgetHold moves forNextMonth → toBudget; holdBudgetForNextMonth
+    // moves it back. The sum never changes, making the logic idempotent.
+    const available = forNextMonth + toBudget
+
+    console.log(
+      `  Income total (month to date): $${(incomeTotalCents / 100).toFixed(2)}`,
+    )
+    console.log(
+      `  Held for next month:          $${(forNextMonth / 100).toFixed(2)}`,
+    )
+    console.log(
+      `  Available (held + toBudget):  $${(available / 100).toFixed(2)}`,
+    )
+
+    if (available >= incomeTotalCents) {
+      const newHold = available - incomeTotalCents
+      if (!DRY_RUN) {
+        await api.resetBudgetHold(month)
+        if (newHold > 0) {
+          await api.holdBudgetForNextMonth(month, newHold)
+        }
+      }
+      console.log(
+        `  ${DRY_RUN ? "[DRY RUN] Would release" : "Released"} $${(incomeTotalCents / 100).toFixed(2)} to current month (now over-budget by this amount)`,
+      )
+      console.log(
+        `  ${DRY_RUN ? "[DRY RUN] Would re-hold" : "Re-held "}  $${(newHold / 100).toFixed(2)} for next month`,
+      )
     } else {
-      console.error(`  ✗ ${u.name}: ${(r.reason as Error).message}`)
-      errors++
+      if (!DRY_RUN) {
+        await api.resetBudgetHold(month)
+      }
+      console.log(
+        `  ${DRY_RUN ? "[DRY RUN] Would release" : "Released"} full hold — available $${(available / 100).toFixed(2)} < income total $${(incomeTotalCents / 100).toFixed(2)}`,
+      )
     }
   }
 
-  await api.sync()
+  if (!DRY_RUN) {
+    await api.sync()
+  }
   await api.shutdown()
 
-  console.log(`\nDone. ${applied} budgets updated, ${errors} errors.`)
-  if (errors > 0) process.exit(1)
+  console.log(`\nDone.`)
 }
 
 main().catch((err) => {
