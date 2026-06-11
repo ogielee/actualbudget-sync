@@ -59,7 +59,8 @@ for (const [k, v] of Object.entries({
 function sheetsClient() {
   if (env.GOOGLE_SERVICE_ACCOUNT_KEY) {
     const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_KEY),
+      // strip a UTF-8 BOM that Windows tools may prepend to the secret
+      credentials: JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_KEY.replace(/^﻿/, "")),
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     })
     return google.sheets({ version: "v4", auth })
