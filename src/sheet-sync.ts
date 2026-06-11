@@ -57,6 +57,13 @@ for (const [k, v] of Object.entries({
 // ── Google Sheets auth ────────────────────────────────────────────────────────
 
 function sheetsClient() {
+  if (env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_KEY),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    })
+    return google.sheets({ version: "v4", auth })
+  }
   const auth = new google.auth.OAuth2(
     env.GOOGLE_OAUTH_CLIENT_ID,
     env.GOOGLE_OAUTH_CLIENT_SECRET,
