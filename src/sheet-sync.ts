@@ -1,11 +1,14 @@
 /**
  * sheet-sync: Weekly Google Sheets → Actual Budget sync
  *
- * Reads the "Budget 2026 v2" tab from Google Sheets, sums all weeks in the
- * current month up to today, and sets those as the monthly budget amounts in
- * Actual Budget.  The operation is idempotent — running it multiple times or
- * editing a past week in the sheet and re-running will produce the same correct
- * result.
+ * Reads the "Budget 2026 v2" tab from Google Sheets, finds the weekly column
+ * whose Monday-dated week contains today, and sets budgets for that column's
+ * month — summing that month's weekly columns up to and including the current
+ * week.  Anchoring to the week (not the calendar month) means a week that
+ * straddles a month boundary keeps refreshing its own month until it ends
+ * (e.g. the Jun 29 week stays current, and updates June, through Jul 5).  The
+ * operation is idempotent — running it multiple times or editing a past week in
+ * the sheet and re-running will produce the same correct result.
  */
 
 import * as api from "@actual-app/api"
@@ -79,9 +82,9 @@ function toISO(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-/** Return YYYY-MM for a date. */
+/** Return YYYY-MM for a date, read in UTC so it doesn't shift by local timezone. */
 function monthKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`
 }
 
 /** Parse a header cell value into a Date if it looks like an ISO date (YYYY-MM-DD). */
@@ -100,11 +103,9 @@ async function main() {
   const today = new Date(
     new Date().toLocaleDateString("en-CA", { timeZone: "Pacific/Auckland" }),
   )
-  const currentMonth = monthKey(today)
 
   console.log(`\n=== Sheet Budget Sync ===`)
   console.log(`Date:  ${toISO(today)}`)
-  console.log(`Month: ${currentMonth}`)
   if (DRY_RUN) console.log("Mode:  DRY RUN (no changes will be written)")
   console.log()
 
@@ -126,39 +127,56 @@ async function main() {
   // Row 2 (index 1) = headers: Category | Actual ID | date1 | date2 | ...
   const headerRow = rows[1] ?? []
 
-  // Find week columns that are in the current month and ≤ today
+  // Parse every week-header column into { colIdx, date }, keeping the weeks
+  // whose Monday date is on or before today. Columns may span multiple months.
+  const MS_PER_DAY = 86400000
   type WeekCol = { colIdx: number; date: Date }
-  const weekCols: WeekCol[] = []
+  const pastWeeks: WeekCol[] = []
   for (let c = 2; c < headerRow.length; c++) {
     const raw = headerRow[c]
-    // Headers are stored as ISO strings ("2026-06-02") in column B data
-    // but displayed as "2 Jun" — we stored ISO dates in colISO which maps
-    // to the actual cell value.  Google returns UNFORMATTED_VALUE so dates
-    // come back as serial numbers.  We need to convert.
-    // Serial number 0 = Dec 30 1899 in Google Sheets
+    // Google returns UNFORMATTED_VALUE, so date headers come back as serial
+    // numbers; older sheets may store ISO strings.
+    let d: Date | null = null
     if (typeof raw === "number") {
-      // Excel/Sheets serial date → JS Date
-      const ms = (raw - 25569) * 86400000 // days since Unix epoch (Jan 1 1970)
-      const d = new Date(ms)
-      d.setHours(0, 0, 0, 0)
-      if (monthKey(d) === currentMonth && d <= today) {
-        weekCols.push({ colIdx: c, date: d })
-      }
+      // Serial 0 = Dec 30 1899; 25569 = days from there to the Unix epoch.
+      // Build at UTC midnight (Math.round drops float dust) so the month/day is
+      // stable regardless of the machine's local timezone.
+      d = new Date((Math.round(raw) - 25569) * MS_PER_DAY)
     } else if (typeof raw === "string") {
-      const d = parseISODate(raw)
-      if (d && monthKey(d) === currentMonth && d <= today) {
-        weekCols.push({ colIdx: c, date: d })
-      }
+      d = parseISODate(raw)
     }
+    if (d && d <= today) pastWeeks.push({ colIdx: c, date: d })
   }
 
-  if (weekCols.length === 0) {
-    console.log(
-      "No week columns found for the current month up to today. Nothing to sync.",
-    )
+  // The current week is the most recent Monday-dated column on or before today,
+  // provided today still falls inside it (Mon..Mon+6). Anchoring to the week
+  // rather than the calendar month keeps a straddling week refreshing its own
+  // month after the month rolls over (the Jun 29 week is current on Jul 1–5).
+  let latest: WeekCol | undefined
+  for (const w of pastWeeks) {
+    if (!latest || w.date > latest.date) latest = w
+  }
+  const currentWeek =
+    latest && (today.getTime() - latest.date.getTime()) / MS_PER_DAY <= 6
+      ? latest
+      : undefined
+
+  if (!currentWeek) {
+    console.log("No week column contains today's date. Nothing to sync.")
     process.exit(0)
   }
 
+  // Budget is written to the month the current week's Monday belongs to, summing
+  // that month's weekly columns up to and including the current week.
+  const targetMonth = monthKey(currentWeek.date)
+  const weekCols = pastWeeks.filter(
+    (w) => monthKey(w.date) === targetMonth && w.date <= currentWeek.date,
+  )
+
+  console.log(`Target month: ${targetMonth}`)
+  console.log(
+    `Current week: ${toISO(currentWeek.date)} (contains today ${toISO(today)})`,
+  )
   console.log(
     `Week columns to sum: ${weekCols.map((w) => toISO(w.date)).join(", ")}`,
   )
@@ -243,7 +261,7 @@ async function main() {
   }
   console.log()
 
-  const month = currentMonth // "2026-06" format expected by api.setBudget
+  const month = targetMonth // "2026-06" format expected by api.setBudget
 
   if (DRY_RUN) {
     console.log("DRY RUN — skipping category budget writes.")
