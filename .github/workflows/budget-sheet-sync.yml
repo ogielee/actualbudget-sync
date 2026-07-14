@@ -27,22 +27,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Sync @actual-app/api version to server
-        run: |
-          SERVER_VERSION=$(curl -s "$ACTUAL_SERVER/info" 2>/dev/null | jq -r '.build.version // empty' 2>/dev/null || true)
-          INSTALLED=$(node -e "console.log(require('./node_modules/@actual-app/api/package.json').version)")
-          echo "Server: ${SERVER_VERSION:-unknown}  Installed: $INSTALLED"
-          if [ -n "$SERVER_VERSION" ] && [ "$SERVER_VERSION" != "$INSTALLED" ]; then
-            NEWER=$(printf '%s\n%s\n' "$SERVER_VERSION" "$INSTALLED" | sort -V | tail -1)
-            if [ "$NEWER" = "$SERVER_VERSION" ]; then
-              echo "Server is newer — upgrading @actual-app/api to $SERVER_VERSION"
-              pnpm add @actual-app/api@$SERVER_VERSION
-            else
-              echo "Installed ($INSTALLED) >= server ($SERVER_VERSION) — keeping installed version"
-            fi
-          fi
-        env:
-          ACTUAL_SERVER: ${{ secrets.ACTUAL_SERVER }}
+      - name: Match @actual-app/api to the latest release
+        # The Actual server (self-hosted on PikaPods) auto-updates to the latest
+        # release. A client OLDER than the server can't load the budget and fails
+        # with "out-of-sync-migrations"; a client >= the server migrates the file
+        # forward fine — so always install the latest published client.
+        #
+        # This replaces an earlier "$ACTUAL_SERVER/info" version probe that never
+        # worked: on this deployment that path falls through to the web app and
+        # returns HTML, so the parsed version was always empty and the upgrade was
+        # silently skipped — leaving the client pinned until a server update broke it.
+        run: pnpm add @actual-app/api@latest
 
       - name: Build
         run: pnpm build

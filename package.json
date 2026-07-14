@@ -48,7 +48,7 @@
     "vitest": "^4.1.0"
   },
   "dependencies": {
-    "@actual-app/api": "26.6.0",
+    "@actual-app/api": "26.7.0",
     "@actual-app/crdt": "^2.1.0",
     "better-sqlite3": "^12.8.0",
     "compare-versions": "^6.1.1",

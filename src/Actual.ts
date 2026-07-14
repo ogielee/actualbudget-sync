@@ -12,8 +12,10 @@ import {
   Stream,
 } from "effect"
 import * as Api from "@actual-app/api"
-import ApiPackage from "@actual-app/api/package.json" with { type: "json" }
 import { compareVersions } from "compare-versions"
+import { createRequire } from "node:module"
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { Npm } from "./Npm.ts"
 import { NodeHttpClient } from "@effect/platform-node"
 // TransactionEntity removed from @actual-app/api in 26.5.2 — define locally
@@ -26,6 +28,29 @@ interface TransactionEntity {
   cleared?: boolean | null
 }
 import { HttpClient, HttpClientResponse } from "effect/unstable/http"
+
+// @actual-app/api stopped exporting ./package.json (26.7+), so resolve the
+// installed package on disk and read its version directly (fs bypasses the
+// package "exports" restriction).
+function readInstalledApiVersion(): string {
+  const require = createRequire(import.meta.url)
+  let dir = dirname(require.resolve("@actual-app/api"))
+  for (let i = 0; i < 8; i++) {
+    try {
+      const pkg = JSON.parse(
+        readFileSync(join(dir, "package.json"), "utf8"),
+      ) as { name?: string; version?: string }
+      if (pkg.name === "@actual-app/api" && pkg.version) return pkg.version
+    } catch {
+      // no readable package.json here — keep walking up
+    }
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  throw new Error("Unable to determine installed @actual-app/api version")
+}
+const installedApiVersion = readInstalledApiVersion()
 
 export type Query = ReturnType<typeof Api.q>
 
@@ -68,7 +93,7 @@ export class Actual extends ServiceMap.Service<Actual>()("Actual", {
 
     const api = yield* Effect.gen(function* () {
       const version = yield* serverVersion
-      if (version === ApiPackage.version) {
+      if (version === installedApiVersion) {
         return Api
       }
       // Only download the server's version if it is strictly newer than what
@@ -76,13 +101,13 @@ export class Actual extends ServiceMap.Service<Actual>()("Actual", {
       // temporarily reported an older version while the DB already has newer
       // migrations applied), keep the installed version so we don't
       // inadvertently downgrade and break migration compatibility.
-      if (compareVersions(version, ApiPackage.version) <= 0) {
+      if (compareVersions(version, installedApiVersion) <= 0) {
         yield* Effect.logInfo(
           "Server version is older than installed — keeping installed version.",
         ).pipe(
           Effect.annotateLogs({
             serverVersion: version,
-            localVersion: ApiPackage.version,
+            localVersion: installedApiVersion,
           }),
         )
         return Api
@@ -92,7 +117,7 @@ export class Actual extends ServiceMap.Service<Actual>()("Actual", {
       ).pipe(
         Effect.annotateLogs({
           serverVersion: version,
-          localVersion: ApiPackage.version,
+          localVersion: installedApiVersion,
         }),
       )
       const name = yield* npm.install({
