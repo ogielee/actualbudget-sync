@@ -79,4 +79,5 @@ jobs:
             --transfer-match "jointipsave=d2edf7ee-2fb7-43e5-999d-1e91c58f95c6" \
             --transfer-match "payPHairfre=d2edf7ee-2fb7-43e5-999d-1e91c58f95c6" \
             --transfer-match "kenziesaving=6f0c4678-3aac-45e8-b7ad-509cb710aeeb" \
-            --transfer-match "jointsaving=726e8b38-3063-4672-8016-26001d6dacde"
+            --transfer-match "jointsaving=726e8b38-3063-4672-8016-26001d6dacde" \
+            --transfer-match "to card 6198=73894fda-4db3-4dcc-92c5-f62973436c70"
