@@ -63,6 +63,19 @@ const clearedOnly = Flag.boolean("cleared-only").pipe(
   Flag.withAlias("C"),
 )
 
+const transferMatch = Flag.keyValuePair("transfer-match").pipe(
+  Flag.optional,
+  Flag.withDescription(
+    "Route a recurring transfer (standing order, direct debit) to a destination account by matching a stable token against the bank's transaction metadata, in the format 'token=actual-account-id'. Repeatable. If the destination is also being synced, both sides are linked as a transfer after import instead of a payee being set directly.",
+  ),
+)
+
+const dryRun = Flag.boolean("dry-run").pipe(
+  Flag.withDescription(
+    "Log every intended change instead of writing it to Actual",
+  ),
+)
+
 const actualsync = Command.make("actualsync", {
   bank,
   accounts,
@@ -71,9 +84,20 @@ const actualsync = Command.make("actualsync", {
   timezone,
   syncDuration,
   clearedOnly,
+  transferMatch,
+  dryRun,
 }).pipe(
   Command.withHandler(
-    ({ accounts, categorize, categories, bank, syncDuration, clearedOnly }) =>
+    ({
+      accounts,
+      categorize,
+      categories,
+      bank,
+      syncDuration,
+      clearedOnly,
+      transferMatch,
+      dryRun,
+    }) =>
       Sync.run({
         accounts: Object.entries(accounts).map(
           ([actualAccountId, bankAccountId]) => ({
@@ -94,6 +118,17 @@ const actualsync = Command.make("actualsync", {
         ),
         syncDuration,
         clearedOnly,
+        transferMatch: Option.getOrUndefined(
+          Option.map(transferMatch, (transferMatchOption) =>
+            Object.entries(transferMatchOption).map(
+              ([token, actualAccountId]) => ({
+                token,
+                actualAccountId,
+              }),
+            ),
+          ),
+        ),
+        dryRun,
       }).pipe(Effect.provide(Layer.mergeAll(banks[bank], Actual.layer))),
   ),
   Command.provide(({ timezone }) => timezone),

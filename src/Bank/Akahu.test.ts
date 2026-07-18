@@ -1,4 +1,4 @@
-import { BigDecimal, DateTime, Effect, Layer, Stream } from "effect"
+import { BigDecimal, DateTime, Duration, Effect, Layer, Stream } from "effect"
 import {
   AccountId,
   Akahu,
@@ -9,7 +9,7 @@ import {
   UserId,
 } from "./Akahu.ts"
 import { assert, it } from "@effect/vitest"
-import { runTest } from "../Sync.ts"
+import { runCollect, runTest, testCategories, testPayees } from "../Sync.ts"
 
 const AkahuTest = Layer.succeed(Akahu)(
   Akahu.of({
@@ -87,22 +87,24 @@ it.layer(BankTest)("Akahu", (it) => {
       const results = yield* runTest({ categorize: false })
       assert.deepStrictEqual(results, [
         {
-          imported_id: "2021010110050-1",
+          imported_id: "pending-2021010110050-1",
           date: "2021-01-01",
           payee_name: "Pending transaction",
           amount: 10050,
           notes: undefined,
           cleared: false,
           account: "actual-checking",
+          forceAddTransaction: true,
         },
         {
-          imported_id: "2021010220050-1",
+          imported_id: "1",
           date: "2021-01-02",
           payee_name: "Transaction",
           amount: 20050,
           notes: "Transaction",
           cleared: true,
           account: "actual-checking",
+          forceAddTransaction: true,
         },
       ])
     }),
@@ -110,20 +112,50 @@ it.layer(BankTest)("Akahu", (it) => {
 })
 
 it.layer(BankCrossBankTest)("Akahu cross-bank transfer", (it) => {
-  it.effect("links both sides with a shared transfer_id", () =>
-    Effect.gen(function* () {
-      const results = yield* runTest({ categorize: false })
-      const out = results.find((t) => t.account === "actual-checking")
-      const inn = results.find((t) => t.account === "actual-savings")
-      assert.ok(out, "outgoing transaction should exist")
-      assert.ok(inn, "incoming transaction should exist")
-      assert.ok(out.transfer_id, "outgoing should have transfer_id")
-      assert.ok(inn.transfer_id, "incoming should have transfer_id")
-      assert.strictEqual(
-        out.transfer_id,
-        inn.transfer_id,
-        "both sides must share the same transfer_id",
-      )
-    }),
+  // transfer_id can't be assigned at collect time — it must be the OTHER
+  // row's real, server-assigned id, which doesn't exist until both sides
+  // are imported (see the 2026-07-17 incident: the old shared-UUID
+  // approach produced a transfer_id that matched neither row's real id).
+  // So runCollect only queues each side as a link candidate targeting the
+  // other's account; Sync.run's post-import pass does the actual linking.
+  it.effect(
+    "queues both sides as link candidates targeting each other's account, without setting transfer_id at collect time",
+    () =>
+      Effect.gen(function* () {
+        const results = yield* runCollect({
+          accounts: [
+            { bankAccountId: "checking", actualAccountId: "actual-checking" },
+            { bankAccountId: "savings", actualAccountId: "actual-savings" },
+          ],
+          syncDuration: Duration.days(30),
+          categorize: false,
+          categories: testCategories,
+          payees: testPayees,
+        })
+
+        const checking = results.find(
+          (r) => r.actualAccountId === "actual-checking",
+        )!
+        const savings = results.find(
+          (r) => r.actualAccountId === "actual-savings",
+        )!
+
+        assert.isFalse(
+          "transfer_id" in checking.transactions[0],
+          "transfer_id must not be set at collect time",
+        )
+        assert.isFalse("transfer_id" in savings.transactions[0])
+
+        assert.equal(checking.linkCandidates.length, 1)
+        assert.equal(
+          checking.linkCandidates[0].targetAccountId,
+          "actual-savings",
+        )
+        assert.equal(savings.linkCandidates.length, 1)
+        assert.equal(
+          savings.linkCandidates[0].targetAccountId,
+          "actual-checking",
+        )
+      }),
   )
 })

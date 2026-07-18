@@ -38,6 +38,15 @@ export interface AccountTransaction {
   readonly type?: string
   readonly transfer?: string
   readonly externalId?: string
+  /**
+   * A stable routing token for this transaction, independent of the
+   * human-readable description (which often embeds a per-transaction
+   * reference number that changes every time, e.g. Akahu's
+   * `meta.particulars`). Used to match recurring transfers (standing
+   * orders, direct debits) to a destination account via `--transfer-match`,
+   * without relying on fragile substring matches against `notes`.
+   */
+  readonly particulars?: string
 }
 
 export const AccountTransactionOrder = Order.Struct({

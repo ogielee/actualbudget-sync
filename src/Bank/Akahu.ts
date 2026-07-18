@@ -201,6 +201,7 @@ export const UserId = Schema.String.pipe(Schema.brand("UserId"))
 
 class TransactionMeta extends Schema.Class<TransactionMeta>("TransactionMeta")({
   other_account: Schema.optional(Schema.String),
+  particulars: Schema.optional(Schema.String),
 }) {}
 
 export class Transaction extends Schema.Class<Transaction>("Transaction")({
@@ -234,7 +235,11 @@ export class Transaction extends Schema.Class<Transaction>("Transaction")({
       type: this.type,
       notes: this.description,
       cleared: true,
+      externalId: this._id,
       ...(otherAkahuId ? { transfer: otherAkahuId } : undefined),
+      ...(this.meta?.particulars
+        ? { particulars: this.meta.particulars.trim() }
+        : undefined),
     }
   }
 }
