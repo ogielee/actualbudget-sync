@@ -129,11 +129,15 @@ export const ACCOUNTS = [
   },
 ]
 
+// Both tokens route to Premiums Saver (Joint) since 2026-06-22 — the bank
+// started depositing kenziesaving transfers into the same account as
+// jointsaving instead of NoticeSaver (Kenzie); see the 2026-07-19 Rabo
+// reconciliation fix.
 export const RABO_TRANSFER_MATCH = [
   {
     particulars: "kenziesaving",
-    actualId: "6f0c4678-3aac-45e8-b7ad-509cb710aeeb",
-    name: "Rabo NoticeSaver (Kenzie)",
+    actualId: "726e8b38-3063-4672-8016-26001d6dacde",
+    name: "Rabo Premiums Saver (Joint)",
   },
   {
     particulars: "jointsaving",
