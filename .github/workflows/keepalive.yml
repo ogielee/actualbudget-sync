@@ -1,0 +1,38 @@
+name: Keepalive
+
+# Prevents GitHub from auto-disabling this repo's scheduled workflows
+# (akahu-sync, budget-sheet-sync) after 60 days of no commits.
+# Runs weekly; only creates an empty commit when the repo has been idle
+# for 50+ days, which resets GitHub's inactivity timer. Commits made with
+# GITHUB_TOKEN do not trigger other workflows, so nothing else re-runs.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Every Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create keepalive commit if repo has been idle
+        run: |
+          last=$(git log -1 --format=%ct)
+          now=$(date +%s)
+          days=$(( (now - last) / 86400 ))
+          echo "Days since last commit: $days"
+          if [ "$days" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keepalive (prevent scheduled workflow auto-disable)"
+            git push
+          else
+            echo "Repo active within the last 50 days — nothing to do."
+          fi
